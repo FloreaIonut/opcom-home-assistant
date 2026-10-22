@@ -1,15 +1,9 @@
-// Cere prețurile OPCOM PZU (15 min) pentru AZI și, după ora 13, pentru MÂINE, doar dacă lipsesc.
+// Cere prețurile OPCOM PZU (15 min) pentru IERI, AZI și, după ora 13:00 ora României, pentru MÂINE, doar dacă lipsesc.
+// Ieri e necesar: sloturile 93-96 ale zilei OPCOM de ieri (23:00-24:00 CET) sunt ora 00:00-01:00 locală de azi.
 // Rulează la pornire și la fiecare 10 minute (vezi nodul inject).
+//@@CORE@@
 const preturi = flow.get("opcom_preturi") || {};
-const local = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Bucharest" }));
-function zi(offset) {
-    const d = new Date(local); d.setDate(d.getDate() + offset);
-    const p = x => String(x).padStart(2, "0");
-    return { key: d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()),
-             opcom: p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear() };
-}
-const zile = [zi(0)];
-if (local.getHours() >= 13) zile.push(zi(1));   // OPCOM publică ziua de mâine în jur de 13:00–14:30
+const zile = ocZileDeCerut(Date.now());
 const cereri = zile.filter(z => !preturi[z.key] || preturi[z.key].length === 0).map(z => ({
     url: "https://www.opcom.ro/rapoarte-pzu-raportPIP-export-csv/" + z.opcom + "/ro?resolution=15",
     method: "GET", opcomZi: z.key

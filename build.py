@@ -1,9 +1,16 @@
 # Reface fluxul Node-RED (flows/opcom-home-assistant.json) și cardul (card/card_opcom_preturi.yaml) din sursele din src/ și card/
 import json, secrets, os
 D = os.path.dirname(os.path.abspath(__file__))
-R = lambda f: open(os.path.join(D, f), encoding='utf-8').read().strip()
+CORE = open(os.path.join(D, 'src', 'opcom-core.js'), encoding='utf-8').read().strip()   # logica comună, inserată în locul //@@CORE@@
+R = lambda f: open(os.path.join(D, f), encoding='utf-8').read().strip().replace('//@@CORE@@', CORE)
+OUT = os.path.join(D, 'flows', 'opcom-home-assistant.json')
+# ID-urile nodurilor existente se păstrează (importul în Node-RED înlocuiește nodurile, nu le dublează)
+try: VECHI = {n.get('name') or n['type']: n['id'] for n in json.load(open(OUT, encoding='utf-8'))}
+except Exception: VECHI = {}
 i = lambda: secrets.token_hex(8)
-T, IN1, F1, H1, F2, IN2, F3, H2, F4, CM = [i() for _ in range(10)]
+nid = lambda nume: VECHI.get(nume) or i()
+T = nid('tab')
+IN1, F1, H1, F2, IN2, F3, H2, F4, CM = [nid(x) for x in ['pornire + la 10 min', 'Cerere OPCOM', 'OPCOM CSV', 'Salvează prețuri', 'la fiecare minut', 'Publică în HA', 'HA API', 'Rezultat HA', '⚙ Completează HA_URL și HA_TOKEN în nodul „Publică în HA”, apoi Deploy']]
 fn = lambda id, name, f, x, y, w: {"id": id, "type": "function", "z": T, "name": name, "func": R(f), "outputs": 1, "timeout": 0, "noerr": 0, "initialize": "", "finalize": "", "libs": [], "x": x, "y": y, "wires": w}
 hr = lambda id, name, ret, x, y, w: {"id": id, "type": "http request", "z": T, "name": name, "method": "use", "ret": ret, "paytoqs": "ignore", "url": "", "tls": "", "persist": False, "proxy": "", "insecureHTTPParser": False, "authType": "", "senderr": False, "headers": [], "x": x, "y": y, "wires": w}
 nodes = [
