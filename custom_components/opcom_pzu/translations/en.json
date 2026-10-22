@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "OPCOM PZU",
+        "description": "Day-ahead market prices from the public OPCOM CSV. No credentials needed.",
+        "data": {
+          "timezone": "Time zone for the local day",
+          "zone": "Zone in the CSV"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot download the OPCOM CSV (network, timeout or HTTP error). See the log.",
+      "blocked": "OPCOM blocked the request (WAF / 403 / non-CSV answer). See the log.",
+      "invalid_timezone": "Unknown time zone (e.g. Europe/Bucharest).",
+      "no_data": "The CSV downloaded but has no rows for the chosen zone."
+    },
+    "abort": {
+      "already_configured": "The integration is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "OPCOM PZU options",
+        "data": {
+          "timezone": "Time zone for the local day",
+          "zone": "Zone in the CSV"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot download the OPCOM CSV (network, timeout or HTTP error). See the log.",
+      "blocked": "OPCOM blocked the request (WAF / 403 / non-CSV answer). See the log.",
+      "invalid_timezone": "Unknown time zone (e.g. Europe/Bucharest).",
+      "no_data": "The CSV downloaded but has no rows for the chosen zone."
+    }
+  }
+}

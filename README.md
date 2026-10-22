@@ -1,76 +1,111 @@
-# Prețuri energie OPCOM (PZU) în Home Assistant
+# OPCOM PZU în Home Assistant
 
-Flux **Node-RED** care descarcă prețurile pieței pentru ziua următoare (PZU) de pe [opcom.ro](https://www.opcom.ro) și le trimite în **Home Assistant**. Repo-ul include și un **card** pentru dashboard.
+Integrare nativă pentru **Home Assistant** (instalabilă din HACS) care aduce prețurile energiei electrice de pe piața pentru ziua următoare (PZU) de la [OPCOM](https://www.opcom.ro): preț curent, minim / maxim / medie, următoarea oră ieftină, prețuri pe 15 / 30 / 60 de minute pentru azi și mâine, plus un card pentru dashboard. Fără Node-RED, fără MQTT, fără credențiale.
 
-![card](preview.png)
+![card](docs/card-preview.png)
 
-- prețuri pe **15, 30 și 60 de minute**, pentru **azi** și **mâine** (mâine: după ce le publică OPCOM, în jur de 13:00–14:30);
-- prețul pe ora curentă (ca pe opcom.ro la „60min”) și pe intervalul de 15 min, plus min / medie / max;
-- grafic colorat: verde = ieftin, turcoaz = mediu, portocaliu = scump (treimi ale zilei); cele mai ieftine intervale rămase.
+*English, short:* a Home Assistant custom integration (HACS-compatible) that downloads the public OPCOM day-ahead market (PZU) CSV and exposes Romanian electricity prices as sensors (current 15-min price, today/tomorrow min/max/average, next cheap hour, 15/30/60-minute lists as attributes). OPCOM intervals are in CET/CEST and are converted to Romanian local time, including 23/25-hour days. A `custom:button-card` dashboard card is included. Unofficial, not affiliated with OPCOM. A legacy Node-RED variant lives in [`nodered/`](nodered/).
 
-Node-RED poate rula oriunde: pe calculator, pe un Raspberry Pi sau ca add-on. Fluxul folosește **doar nodurile de bază** din Node-RED, fără pachete suplimentare și fără MQTT.
+## Ce face
 
-> **v1.1.0 (22.10.2026): corecție de fus orar.** Intervalele OPCOM sunt în **CET/CEST**, adică ora României minus 1 h (procedura OPCOM pentru PZU, v8, 10.07.2026: intervalul 1 = 00:00–00:15 CET = 01:00–01:15 ora României). Până la v1.0 prețurile erau decalate cu 1 h. Detalii: [docs/corectie-fus-orar.md](docs/corectie-fus-orar.md), [CHANGELOG.md](CHANGELOG.md). **Dacă ai instalat v1.0, reimportă fluxul** (vezi mai jos).
+- descarcă CSV-ul public OPCOM (rezoluție 15 min) și publică senzori în HA;
+- **convertește corect ora**: OPCOM raportează în CET/CEST, adică ora României minus 1 h (vezi [Convenția de timp](#convenția-de-timp-cet));
+- prețuri pe **15, 30 și 60 de minute**, pentru **azi** și **mâine** (mâine apare după ce publică OPCOM, de obicei în jur de 14:00 ora României);
+- **minim / maxim / medie** pe zi și **următoarea oră ieftină** (prima oră care urmează, cu media sub media zilei);
+- cache local: după o repornire senzorii au valori chiar dacă OPCOM nu răspunde;
+- zilele de 23 și 25 de ore sunt tratate corect (92 / 100 de sloturi).
 
-## Fișiere
+## Senzori
 
-| Fișier | Ce este |
+| Entitate | Conținut |
 |---|---|
-| `flows/opcom-home-assistant.json` | fluxul Node-RED (Meniu → Import) |
-| `card/card_opcom_preturi.yaml` | cardul pentru Home Assistant |
-| `src/*.js`, `card/card_opcom.js`, `card/card_opcom.css`, `build.py` | sursele; `python3 build.py` reface fluxul și cardul (`src/opcom-core.js` e inserat în noduri) |
-| `tests/run-tests.js`, `tests/date/` | teste offline (`node tests/run-tests.js`), cu CSV-uri reale OPCOM |
-| `docs/corectie-fus-orar.md`, `CHANGELOG.md` | corecția de fus orar, istoric |
+| `sensor.opcom_pzu_pret_acum` | starea = prețul intervalului curent de 15 min, în lei/MWh |
+| `sensor.opcom_pzu_pret_acum_kwh` | același preț în RON/kWh (poate fi ales în panoul Energie) |
+| `sensor.opcom_pzu_minim_azi`, `sensor.opcom_pzu_maxim_azi`, `sensor.opcom_pzu_medie_azi` | lei/MWh, pe ziua locală |
+| `sensor.opcom_pzu_ora_ieftina_urmatoare` | timestamp: începutul următoarei ore cu media sub media zilei (azi, apoi mâine); atribute `sfarsit`, `pret_mediu_ora_lei_mwh` |
 
-## Instalare
-
-### 1. Token Home Assistant
-În HA: **Profil** (jos, stânga) → **Securitate** → **Long-lived access tokens** → **Creează token**. Copiază tokenul.
-
-### 2. Node-RED
-1. Meniu → **Import** → lipește conținutul din `flows/opcom-home-assistant.json` → **Import**.
-2. Deschide nodul **„Publică în HA”** și completează primele rânduri:
-   ```js
-   const HA_URL   = "http://192.168.1.10:8123";   // adresa ta de Home Assistant
-   const HA_TOKEN = "eyJhbGciOi...";              // tokenul de la pasul 1
-   ```
-3. **Deploy**. După ~20 de secunde, sub noduri trebuie să apară:
-   - „Salvează prețuri”: `AAAA-LL-ZZ: 96 intervale, …` (de 3 ori: ieri, azi, mâine, după ora 13);
-   - „Rezultat HA”: verde **`HA OK la …`**.
-
-   Dacă ai deja fluxul din v1.0: la import alege **„Replace existing nodes”** (nu „Import copy”, ar dubla nodurile; ID-urile sunt păstrate). Importul readuce placeholder-ul pentru `HA_URL`/`HA_TOKEN`, deci completează-le din nou. Nu trebuie resetat nimic: datele vechi se citesc, iar ziua de ieri se cere automat.
-
-   Dacă vezi roșu `401`, tokenul e greșit. Altă eroare înseamnă că adresa HA e greșită sau HA nu răspunde.
-
-### 3. Cardul
-1. Instalează **[button-card](https://github.com/custom-cards/button-card)** (HACS → Frontend → „button-card”).
-2. Dashboard → Edit → **Add card** → **Manual** → lipește conținutul din `card/card_opcom_preturi.yaml` → Save.
-
-Fontul [Rajdhani](https://fonts.google.com/specimen/Rajdhani) e opțional; fără el cardul folosește fontul implicit.
-
-## Senzorul din Home Assistant
-
-`sensor.opcom_pret_acum`: starea este prețul pe intervalul curent de 15 min (lei/MWh). Atribute:
+Atribute pe `sensor.opcom_pzu_pret_acum`:
 
 | Atribut | Conținut |
 |---|---|
-| `azi_15`, `azi_30`, `azi_60` | prețurile de azi pe 15 min (96 valori) și mediile pe 30 min (48) și 60 min (24), în ordinea zilei **locale** (în zilele de 23/25 h: 92/100, 46/50, 23/25) |
+| `azi_15`, `azi_30`, `azi_60` | prețurile de azi pe 15 min (96 valori) și mediile pe 30 min (48) și 60 min (24), în ordinea zilei locale (92/100, 46/50, 23/25 în zilele de 23/25 h) |
 | `maine_15`, `maine_30`, `maine_60` | la fel pentru mâine (goale până le publică OPCOM) |
-| `azi`, `maine` | `{min, max, medie}` pe 15 min |
+| `azi`, `maine` | `{min, max, medie}` |
 | `maine_disponibil` | `true` când există prețuri pentru mâine |
-| `interval` | poziția intervalului curent în ziua locală (1–96; 1–92 / 1–100 în zilele de 23/25 h) |
-| `interval_opcom` | numărul intervalului OPCOM curent (ca pe opcom.ro; la 21:30 ora României = 83, `interval` = 87) |
-| `azi_start_utc`, `maine_start_utc` | începutul fiecărui slot de 15 min, ISO UTC (ex. `2026-10-21T21:00Z`), aliniat cu `azi_15`/`maine_15` |
+| `interval` | poziția intervalului curent în ziua locală |
+| `interval_opcom` | numărul intervalului OPCOM curent (ca pe opcom.ro) |
+| `azi_start_utc`, `maine_start_utc` | începutul fiecărui slot de 15 min, ISO UTC, aliniat cu listele de prețuri |
 | `data_azi`, `data_maine` | datele (ziua locală) |
+| `ultima_descarcare`, `eroare` | momentul ultimei descărcări reușite și ultima eroare, dacă există |
 
-Dacă lipsesc prețurile zilei de ieri, primele sloturi din `azi_*` sunt `null` (listele rămân aliniate).
+Listele mari sunt excluse din recorder (nu umflă baza de date), dar apar în starea curentă.
 
-Senzorul e creat prin API-ul REST al HA (`POST /api/states/sensor.opcom_pret_acum`), la fiecare minut. Nu poate fi editat din interfață (nu are `unique_id`). După un restart HA lipsește cel mult un minut. Istoricul se păstrează normal.
+## Instalare
 
-## Note
+### HACS (recomandat)
+1. HACS → meniul cu trei puncte → **Custom repositories**.
+2. Adaugă `https://github.com/FloreaIonut/opcom-home-assistant`, categoria **Integration**.
+3. Caută „OPCOM PZU”, **Download**, apoi repornește Home Assistant.
 
-- OPCOM e întrebat doar când lipsesc prețurile: la pornire, apoi la 10 minute pentru ziua de mâine, după ora 13. Prețurile se țin în memoria fluxului; după un restart Node-RED se descarcă din nou.
-- Orele afișate sunt în ora României (`Europe/Bucharest`). Intervalele OPCOM sunt în CET/CEST: intervalul 1 al zilei OPCOM = 01:00–01:15 ora României, iar sloturile 93–96 ale zilei OPCOM de ieri sunt 00:00–01:00 de azi. De aceea fluxul cere și ziua de ieri și păstrează ultimele 5 zile.
-- Ziua locală are 96 de sloturi de 15 min, dar **92** în ziua trecerii la ora de vară (23 h) și **100** la ora de iarnă (25 h). În ziua de 25 h ora 03:00 apare de două ori.
-- Cardul din acest repo folosește `*_start_utc` pentru etichete și intervalul curent, deci e corect și în zilele de 23/25 h (în ziua de 25 h prima oră 03:00 apare ca „03:00–03:00”; axa 00/06/12/18/24 e aproximativă). Un card propriu care indexează `azi_60[ora]` rămâne corect în zilele de 24 h; în cele de 23/25 h folosește `azi_start_utc`.
-- Datele vin de la OPCOM S.A.; acest proiect nu este afiliat cu OPCOM.
+### Manual
+Copiază folderul `custom_components/opcom_pzu/` în `/config/custom_components/` și repornește Home Assistant.
+
+## Configurare
+
+**Setări → Dispozitive și servicii → Adaugă integrare → „OPCOM PZU”.** Valorile implicite (fus orar `Europe/Bucharest`, zona `Romania`) sunt cele corecte pentru România. Nu sunt necesare conturi, tokenuri sau chei API. La adăugare se verifică descărcarea CSV-ului de azi; dacă apare eroare, vezi [Depanare](#depanare).
+
+## Card
+
+`card-opcom.yaml` este un card pentru dashboard (grafic colorat: verde = ieftin, turcoaz = mediu, portocaliu = scump; file 15/30/60 min și azi/mâine; cele mai ieftine intervale rămase).
+
+1. Instalează **[button-card](https://github.com/custom-cards/button-card)** din HACS (Frontend).
+2. Dashboard → Edit → **Add card** → **Manual** → lipește conținutul din [`card-opcom.yaml`](card-opcom.yaml).
+
+Cardul folosește `sensor.opcom_pzu_pret_acum`. Fontul [Rajdhani](https://fonts.google.com/specimen/Rajdhani) e opțional.
+
+## Convenția de timp (CET)
+
+Intervalele OPCOM nu sunt în ora României. Procedura operațională a pieței pentru ziua următoare spune:
+
+> „Ofertele se fac prin raportare la ora CET, adică primul interval de tranzactionare este intervalul dintre ora 0:00 și ora 1:00 CET.”
+> — OPCOM, *Procedura operațională privind funcționarea pieței pentru ziua următoare de energie electrică*, pct. 6.3.8 ([PDF, Rev. 6 din 08.06.2022](https://www.opcom.ro/uploads/doc/PZU/PO%20PZU%208%20iun.pdf))
+
+Deci intervalul 1 (00:00–00:15 CET) este 01:00–01:15 ora României, iar ultimele 4 intervale ale zilei OPCOM de ieri (93–96) cad între 00:00 și 01:00 de azi. Integrarea cere de aceea și ziua de ieri și construiește „azi” și „mâine” ca **zile locale** `Europe/Bucharest`. În zilele cu schimbarea orei, ziua locală are 92 (23 h) sau 100 (25 h) de sloturi; în ziua de 25 h ora 03:00 apare de două ori. Convenția a fost verificată și pe revizia 8 a procedurii (10.07.2026).
+
+## Limite
+
+- **Neoficial**: proiect independent, **nu este afiliat cu OPCOM S.A.** Datele aparțin OPCOM; verifică prețurile importante pe opcom.ro.
+- Depinde de endpointul CSV public al OPCOM. Dacă OPCOM îl schimbă sau îl blochează, senzorii pot deveni `unavailable` până la o actualizare a integrării.
+- OPCOM poate bloca cereri printr-un WAF (apare ca „blocked” în log). Integrarea face 3 încercări cu pauză, apoi reîncearcă la următorul ciclu; ultimele date rămân în cache.
+- Doar zona `Romania` și doar rezoluția de 15 min (30/60 min sunt medii calculate).
+- Prețurile de mâine se cer după ora 14:00 ora României, la 30 min până apar.
+
+## Depanare
+
+Activează logurile în `configuration.yaml`:
+
+```yaml
+logger:
+  logs:
+    custom_components.opcom_pzu: debug
+```
+
+- `blocked` / `cannot_connect` la adăugare sau în log: OPCOM nu a răspuns cu CSV (rețea, timeout, WAF). Reîncearcă peste câteva minute.
+- Senzorii sunt `unavailable`: nu există niciun preț pentru azi (nici în cache); atributul `eroare` arată cauza.
+- Mâine lipsește: normal înainte de ~14:00 ora României.
+
+## Varianta Node-RED
+
+Înainte de integrarea nativă, repo-ul a conținut un flux **Node-RED** care trimite aceleași date în Home Assistant prin API-ul REST (`sensor.opcom_pret_acum`), cu propriul card. A rămas în [`nodered/`](nodered/) pentru cine folosește deja Node-RED și nu vrea o integrare custom; are README, teste și changelog proprii. Pentru instalări noi folosește integrarea de mai sus.
+
+## Dezvoltare și teste
+
+```bash
+pip install pytest-homeassistant-custom-component
+python -m pytest tests          # 29 teste: parser (CSV-uri reale OPCOM) + integrare cu HA
+cd nodered && node tests/run-tests.js   # 28 teste, varianta Node-RED
+```
+
+## Licență
+
+[MIT](LICENSE)

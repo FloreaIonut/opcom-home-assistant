@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "OPCOM PZU",
+        "description": "Prețurile pieței pentru ziua următoare, descărcate din CSV-ul public OPCOM. Nu sunt necesare credențiale.",
+        "data": {
+          "timezone": "Fus orar pentru ziua locală",
+          "zone": "Zona din CSV"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nu pot descărca CSV-ul OPCOM (rețea, timeout sau eroare HTTP). Vezi logul.",
+      "blocked": "OPCOM a blocat cererea (WAF / 403 / răspuns care nu e CSV). Vezi logul.",
+      "invalid_timezone": "Fus orar necunoscut (ex. Europe/Bucharest).",
+      "no_data": "CSV-ul s-a descărcat, dar nu are rânduri pentru zona aleasă."
+    },
+    "abort": {
+      "already_configured": "Integrarea este deja configurată."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opțiuni OPCOM PZU",
+        "data": {
+          "timezone": "Fus orar pentru ziua locală",
+          "zone": "Zona din CSV"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nu pot descărca CSV-ul OPCOM (rețea, timeout sau eroare HTTP). Vezi logul.",
+      "blocked": "OPCOM a blocat cererea (WAF / 403 / răspuns care nu e CSV). Vezi logul.",
+      "invalid_timezone": "Fus orar necunoscut (ex. Europe/Bucharest).",
+      "no_data": "CSV-ul s-a descărcat, dar nu are rânduri pentru zona aleasă."
+    }
+  }
+}
