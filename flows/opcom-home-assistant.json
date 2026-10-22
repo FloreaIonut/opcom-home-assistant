@@ -1,0 +1,182 @@
+[
+    {
+        "id": "0101889e1105c52e",
+        "type": "tab",
+        "label": "OPCOM → Home Assistant",
+        "disabled": false,
+        "info": "Prețurile PZU de la OPCOM (15/30/60 min, azi și mâine) trimise în Home Assistant ca sensor.opcom_pret_acum.\n\nSetări: doar în nodul „Publică în HA” (HA_URL și HA_TOKEN).",
+        "env": []
+    },
+    {
+        "id": "5a0fd043f7f6628b",
+        "type": "comment",
+        "z": "0101889e1105c52e",
+        "name": "⚙ Completează HA_URL și HA_TOKEN în nodul „Publică în HA”, apoi Deploy",
+        "info": "",
+        "x": 330,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "7470bb258ea35109",
+        "type": "inject",
+        "z": "0101889e1105c52e",
+        "name": "pornire + la 10 min",
+        "props": [],
+        "repeat": "600",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "",
+        "x": 150,
+        "y": 100,
+        "wires": [
+            [
+                "d0220f1375a01bfb"
+            ]
+        ]
+    },
+    {
+        "id": "d0220f1375a01bfb",
+        "type": "function",
+        "z": "0101889e1105c52e",
+        "name": "Cerere OPCOM",
+        "func": "// Cere prețurile OPCOM PZU (15 min) pentru AZI și, după ora 13, pentru MÂINE, doar dacă lipsesc.\n// Rulează la pornire și la fiecare 10 minute (vezi nodul inject).\nconst preturi = flow.get(\"opcom_preturi\") || {};\nconst local = new Date(new Date().toLocaleString(\"en-US\", { timeZone: \"Europe/Bucharest\" }));\nfunction zi(offset) {\n    const d = new Date(local); d.setDate(d.getDate() + offset);\n    const p = x => String(x).padStart(2, \"0\");\n    return { key: d.getFullYear() + \"-\" + p(d.getMonth() + 1) + \"-\" + p(d.getDate()),\n             opcom: p(d.getDate()) + \"/\" + p(d.getMonth() + 1) + \"/\" + d.getFullYear() };\n}\nconst zile = [zi(0)];\nif (local.getHours() >= 13) zile.push(zi(1));   // OPCOM publică ziua de mâine în jur de 13:00–14:30\nconst cereri = zile.filter(z => !preturi[z.key] || preturi[z.key].length === 0).map(z => ({\n    url: \"https://www.opcom.ro/rapoarte-pzu-raportPIP-export-csv/\" + z.opcom + \"/ro?resolution=15\",\n    method: \"GET\", opcomZi: z.key\n}));\nif (cereri.length === 0) { node.status({ fill: \"green\", shape: \"dot\", text: \"prețuri deja descărcate: \" + zile.map(z => z.key).join(\", \") }); return null; }\nnode.status({ fill: \"blue\", shape: \"dot\", text: \"cer: \" + cereri.map(c => c.opcomZi).join(\", \") });\nreturn [cereri];",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 350,
+        "y": 100,
+        "wires": [
+            [
+                "012afa9ba5ad9ef9"
+            ]
+        ]
+    },
+    {
+        "id": "012afa9ba5ad9ef9",
+        "type": "http request",
+        "z": "0101889e1105c52e",
+        "name": "OPCOM CSV",
+        "method": "use",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 540,
+        "y": 100,
+        "wires": [
+            [
+                "dbb998ac33b66ae2"
+            ]
+        ]
+    },
+    {
+        "id": "dbb998ac33b66ae2",
+        "type": "function",
+        "z": "0101889e1105c52e",
+        "name": "Salvează prețuri",
+        "func": "// Citește CSV-ul OPCOM și salvează în flow \"opcom_preturi\" = { \"AAAA-LL-ZZ\": [ {interval, ora, pret_lei_mwh} ] }\nconst text = typeof msg.payload === \"string\" ? msg.payload : \"\";\nconst preturi = [];\ntext.split(\"\\n\").forEach(linie => {\n    linie = linie.trim();\n    if (!linie.startsWith('\"Romania\"')) return;\n    const col = linie.split(\",\").map(c => c.replace(/\"/g, \"\").trim());\n    const interval = parseInt(col[1]), pret = parseFloat(col[2]);\n    if (isNaN(interval) || isNaN(pret)) return;\n    const min = (interval - 1) * 15;\n    preturi.push({ interval: interval, ora: String(Math.floor(min / 60)).padStart(2, \"0\") + \":\" + String(min % 60).padStart(2, \"0\"), pret_lei_mwh: pret });\n});\nif (msg.statusCode !== 200 || preturi.length === 0) {\n    node.status({ fill: \"yellow\", shape: \"ring\", text: msg.opcomZi + \": încă fără prețuri (cod \" + msg.statusCode + \")\" });\n    return null;\n}\nconst toate = flow.get(\"opcom_preturi\") || {};\ntoate[msg.opcomZi] = preturi;\nObject.keys(toate).sort().slice(0, -3).forEach(k => delete toate[k]);   // păstrăm ultimele 3 zile\nflow.set(\"opcom_preturi\", toate);\nconst v = preturi.map(p => p.pret_lei_mwh);\nnode.status({ fill: \"green\", shape: \"dot\", text: msg.opcomZi + \": \" + preturi.length + \" intervale, \" + Math.min(...v) + \"–\" + Math.max(...v) + \" lei/MWh\" });\nreturn { topic: \"publica\" };   // publică imediat în HA",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 730,
+        "y": 100,
+        "wires": [
+            [
+                "db26acd8d6de9f33"
+            ]
+        ]
+    },
+    {
+        "id": "e719d3a2e0ba467f",
+        "type": "inject",
+        "z": "0101889e1105c52e",
+        "name": "la fiecare minut",
+        "props": [],
+        "repeat": "60",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "20",
+        "topic": "",
+        "x": 150,
+        "y": 180,
+        "wires": [
+            [
+                "db26acd8d6de9f33"
+            ]
+        ]
+    },
+    {
+        "id": "db26acd8d6de9f33",
+        "type": "function",
+        "z": "0101889e1105c52e",
+        "name": "Publică în HA",
+        "func": "// ===================== SETĂRI (aici modifici) =====================\nconst HA_URL   = \"http://homeassistant.local:8123\";   // adresa Home Assistant (ex. http://192.168.1.10:8123)\nconst HA_TOKEN = \"PUNE_AICI_TOKEN_HA\";                  // Profil HA → Securitate → Long-lived access token\nconst ENTITATE = \"sensor.opcom_pret_acum\";              // NU schimba: cardul citește acest senzor\n// ==================================================================\n// Trimite în HA prețul curent + listele pe 15/30/60 min pentru azi și mâine.\nif (HA_TOKEN.startsWith(\"PUNE_AICI\")) { node.status({ fill: \"red\", shape: \"ring\", text: \"completează HA_URL și HA_TOKEN în acest nod\" }); return null; }\nconst r2 = x => Math.round(x * 100) / 100;\nconst local = new Date(new Date().toLocaleString(\"en-US\", { timeZone: \"Europe/Bucharest\" }));\nconst p = x => String(x).padStart(2, \"0\");\nconst cheie = d => d.getFullYear() + \"-\" + p(d.getMonth() + 1) + \"-\" + p(d.getDate());\nconst maine = new Date(local); maine.setDate(maine.getDate() + 1);\nconst aziKey = cheie(local), maineKey = cheie(maine);\nconst opcom = flow.get(\"opcom_preturi\") || {};\nconst pAzi = opcom[aziKey] || [], pMaine = opcom[maineKey] || [];\nconst intervalAcum = Math.floor((local.getHours() * 60 + local.getMinutes()) / 15) + 1;\nconst pretAcum = (pAzi.find(x => x.interval === intervalAcum) || {}).pret_lei_mwh;\nfunction minmax(l) { const v = l.map(x => x.pret_lei_mwh); return v.length ? { min: Math.min(...v), max: Math.max(...v), medie: r2(v.reduce((a, b) => a + b, 0) / v.length) } : null; }\n// prețuri pe 15 min (n=1) și medii pe 30 min (n=2) și 60 min (n=4), în ordinea intervalelor\nfunction grupe(l, n) {\n    const s = l.slice().sort((x, y) => x.interval - y.interval), out = [];\n    for (let i = 0; i < s.length; i += n) { const g = s.slice(i, i + n); out.push(r2(g.reduce((a, x) => a + x.pret_lei_mwh, 0) / g.length)); }\n    return out;\n}\nmsg.url = HA_URL.replace(/\\/+$/, \"\") + \"/api/states/\" + ENTITATE;\nmsg.method = \"POST\";\nmsg.headers = { \"Authorization\": \"Bearer \" + HA_TOKEN, \"Content-Type\": \"application/json\" };\nmsg.payload = {\n    state: pretAcum !== undefined ? String(pretAcum) : \"unknown\",\n    attributes: {\n        interval: intervalAcum, azi: minmax(pAzi), maine: minmax(pMaine), maine_disponibil: pMaine.length > 0,\n        data_azi: aziKey, data_maine: maineKey,\n        azi_15: grupe(pAzi, 1), azi_30: grupe(pAzi, 2), azi_60: grupe(pAzi, 4),\n        maine_15: grupe(pMaine, 1), maine_30: grupe(pMaine, 2), maine_60: grupe(pMaine, 4),\n        unit_of_measurement: \"lei/MWh\", friendly_name: \"OPCOM Pret acum\", icon: \"mdi:flash\"\n    }\n};\nnode.status({ fill: pAzi.length ? \"blue\" : \"yellow\", shape: \"dot\",\n    text: (pretAcum !== undefined ? pretAcum + \" lei/MWh\" : \"fără preț azi\") + \" · mâine \" + (pMaine.length ? \"da\" : \"nu\") });\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 350,
+        "y": 180,
+        "wires": [
+            [
+                "c1f67243438ff03f"
+            ]
+        ]
+    },
+    {
+        "id": "c1f67243438ff03f",
+        "type": "http request",
+        "z": "0101889e1105c52e",
+        "name": "HA API",
+        "method": "use",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 540,
+        "y": 180,
+        "wires": [
+            [
+                "c1dab35284d4962a"
+            ]
+        ]
+    },
+    {
+        "id": "c1dab35284d4962a",
+        "type": "function",
+        "z": "0101889e1105c52e",
+        "name": "Rezultat HA",
+        "func": "// Arată dacă HA a primit senzorul (200 = actualizat, 201 = creat)\nif (msg.statusCode === 200 || msg.statusCode === 201) {\n    node.status({ fill: \"green\", shape: \"dot\", text: \"HA OK la \" + new Date().toLocaleTimeString(\"ro-RO\", { timeZone: \"Europe/Bucharest\" }) });\n} else {\n    node.status({ fill: \"red\", shape: \"ring\", text: \"HA a răspuns \" + msg.statusCode + (msg.statusCode === 401 ? \" — token greșit\" : \"\") });\n    node.warn(\"Eroare HA \" + msg.statusCode + \": \" + JSON.stringify(msg.payload).slice(0, 200));\n}\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 730,
+        "y": 180,
+        "wires": []
+    }
+]
