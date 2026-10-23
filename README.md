@@ -77,7 +77,7 @@ Intervalele OPCOM nu sunt în ora României. Procedura operațională a pieței 
 > „Ofertele se fac prin raportare la ora CET, adică primul interval de tranzactionare este intervalul dintre ora 0:00 și ora 1:00 CET.”
 > — OPCOM, *Procedura operațională privind funcționarea pieței pentru ziua următoare de energie electrică*, pct. 6.3.8 ([PDF, Rev. 6 din 08.06.2022](https://www.opcom.ro/uploads/doc/PZU/PO%20PZU%208%20iun.pdf))
 
-Deci intervalul 1 (00:00–00:15 CET) este 01:00–01:15 ora României, iar ultimele 4 intervale ale zilei OPCOM de ieri (93–96) cad între 00:00 și 01:00 de azi. Integrarea cere de aceea și ziua de ieri și construiește „azi” și „mâine” ca **zile locale** `Europe/Bucharest`. În zilele cu schimbarea orei, ziua locală are 92 (23 h) sau 100 (25 h) de sloturi; în ziua de 25 h ora 03:00 apare de două ori. Convenția a fost verificată și pe revizia 8 a procedurii (10.07.2026).
+Deci intervalul 1 (00:00–00:15 CET) este 01:00–01:15 ora României, iar ultimele 4 intervale ale zilei OPCOM de ieri (93–96) cad între 00:00 și 01:00 de azi. Integrarea cere de aceea și ziua de ieri și construiește „azi” și „mâine” ca **zile locale** `Europe/Bucharest`. În zilele cu schimbarea orei, ziua locală are 92 (23 h) sau 100 (25 h) de sloturi; în ziua de 25 h ora 03:00 apare de două ori. Convenția a fost confirmată și prin compararea cu prețurile publicate pe ora României (economisi.ro, 22.10.2026); ediția 8 a procedurii (10.07.2026) nu a putut fi verificată direct.
 
 ## Limite
 
