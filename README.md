@@ -1,10 +1,10 @@
 # OPCOM PZU în Home Assistant
 
-Integrare nativă pentru **Home Assistant** (instalabilă din HACS) care aduce prețurile energiei electrice de pe piața pentru ziua următoare (PZU) de la [OPCOM](https://www.opcom.ro): preț curent, minim / maxim / medie, următoarea oră ieftină, prețuri pe 15 / 30 / 60 de minute pentru azi și mâine, plus un card pentru dashboard. Fără Node-RED, fără MQTT, fără credențiale.
+Integrare nativă pentru **Home Assistant** (instalabilă din HACS) care aduce prețurile energiei electrice de pe piața pentru ziua următoare (PZU) de la [OPCOM](https://www.opcom.ro): preț curent, minim / maxim / medie, următoarea oră ieftină, prețuri pe 15 / 30 / 60 de minute pentru azi și mâine, plus un card interactiv pentru dashboard. Fără Node-RED, fără MQTT, fără credențiale.
 
 ![card](docs/card-preview.png)
 
-*English, short:* a Home Assistant custom integration (HACS-compatible) that downloads the public OPCOM day-ahead market (PZU) CSV and exposes Romanian electricity prices as sensors (current 15-min price, today/tomorrow min/max/average, next cheap hour, 15/30/60-minute lists as attributes). OPCOM intervals are in CET/CEST and are converted to Romanian local time, including 23/25-hour days. A `custom:button-card` dashboard card is included. Unofficial, not affiliated with OPCOM. A legacy Node-RED variant lives in [`nodered/`](nodered/).
+*English, short:* a Home Assistant custom integration (HACS-compatible) that downloads the public OPCOM day-ahead market (PZU) CSV and exposes Romanian electricity prices as sensors (current 15-min price, today/tomorrow min/max/average, next cheap hour, 15/30/60-minute lists as attributes). OPCOM intervals are in CET/CEST and are converted to Romanian local time, including 23/25-hour days. An interactive `custom:button-card` dashboard card (needs `button-card` and `browser_mod`) is included: click for a 60-minute chart popup, click a column for the 15-minute detail. Unofficial, not affiliated with OPCOM. A legacy Node-RED variant lives in [`nodered/`](nodered/).
 
 ## Ce face
 
@@ -56,12 +56,19 @@ Copiază folderul `custom_components/opcom_pzu/` în `/config/custom_components/
 
 ## Card
 
-`card-opcom.yaml` este un card pentru dashboard (grafic colorat: verde = ieftin, turcoaz = mediu, portocaliu = scump; file 15/30/60 min și azi/mâine; cele mai ieftine intervale rămase).
+`card-opcom.yaml` este un card interactiv pentru dashboard, pe `sensor.opcom_pzu_pret_acum`:
 
-1. Instalează **[button-card](https://github.com/custom-cards/button-card)** din HACS (Frontend).
-2. Dashboard → Edit → **Add card** → **Manual** → lipește conținutul din [`card-opcom.yaml`](card-opcom.yaml).
+- cardul mic arată prețul orei curente, minim / medie / maxim și graficul zilei;
+- **click pe card** => fereastra (popup) cu graficul pe 60 de minute: 24 de coloane, prețul în lei/kWh sub fiecare (verde = ieftin, turcoaz = mediu, portocaliu = scump);
+- **click pe o coloană** => detaliul pe 15 minute al orei respective (4 casete, lei/kWh și lei/MWh);
+- butoane **AZI / MÂINE / ORA CURENTĂ**; MÂINE se activează după ce OPCOM publică prețurile (în jur de 14:00 ora României), până atunci arată ⏳;
+- zilele de 23 și 25 de ore sunt corecte (23 / 25 de coloane; ora repetată apare „03ᵇ”).
 
-Cardul folosește `sensor.opcom_pzu_pret_acum`. Fontul [Rajdhani](https://fonts.google.com/specimen/Rajdhani) e opțional.
+Instalare:
+1. Din HACS (Frontend) instalează **[button-card](https://github.com/custom-cards/button-card)** și **[browser_mod](https://github.com/thomasloven/hass-browser_mod)** (browser_mod deschide fereastra).
+2. Dashboard → Edit → **Add card** → **Manual** → lipește conținutul din [`card-opcom.yaml`](card-opcom.yaml) → Save.
+
+Nu cere helperi (`input_*`) și nimic în `configuration.yaml`: alegerea zilei și a orei e ținută local, în browser, de un `onclick` inline. Limite: cât senzorul e `unavailable` cardul arată „Fără prețuri”; sloturile fără preț apar ca „–”; la fiecare actualizare (15 min) fereastra deschisă revine la ora curentă. Fontul [Rajdhani](https://fonts.google.com/specimen/Rajdhani) e opțional.
 
 ## Convenția de timp (CET)
 

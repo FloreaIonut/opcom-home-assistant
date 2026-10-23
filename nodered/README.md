@@ -50,6 +50,8 @@ Node-RED poate rula oriunde: pe calculator, pe un Raspberry Pi sau ca add-on. Fl
 
 Fontul [Rajdhani](https://fonts.google.com/specimen/Rajdhani) e opțional; fără el cardul folosește fontul implicit.
 
+**Card interactiv (opțional):** `card/card_opcom_interactiv.yaml` pe `sensor.opcom_pret_acum`: click pe card => fereastră cu graficul pe 60 min, click pe coloană => detaliu pe 15 min, AZI / MÂINE / ORA CURENTĂ. Cere și **[browser_mod](https://github.com/thomasloven/hass-browser_mod)** (HACS) pe lângă `button-card`; se lipește la fel, într-un card Manual. Nu cere helperi.
+
 ## Senzorul din Home Assistant
 
 `sensor.opcom_pret_acum`: starea este prețul pe intervalul curent de 15 min (lei/MWh). Atribute:
