@@ -47,7 +47,7 @@ class Fake:
         cls.mode = "ok"
         cls.published = set(FILES)
 
-    async def fetch_day(self, key):
+    async def fetch_day(self, key, attempt=0):
         Fake.calls.append(key)
         if Fake.mode == "blocked":
             raise OpcomBlockedError("test WAF")
@@ -66,7 +66,7 @@ def _fake(monkeypatch):
         return None
     monkeypatch.setattr(coord_mod, "_pause", nopause)
     # fără sesiune aiohttp reală (ar porni firul DNS pycares)
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda hass: None)
+    monkeypatch.setattr(coord_mod, "async_create_clientsession", lambda hass: None)
     from custom_components.opcom_pzu import config_flow as cf
     monkeypatch.setattr(cf, "async_get_clientsession", lambda hass: None)
 
@@ -222,8 +222,8 @@ async def test_blocked_without_cache_is_unavailable_and_logged(hass, caplog):
     await _setup(hass)
     assert hass.states.get("sensor.opcom_pzu_pret_acum").state == "unavailable"
     assert "blocked" in caplog.text and "descărcare eșuată" in caplog.text
-    # retry cu pauză: 3 încercări / zi cerută, pentru ieri
-    assert Fake.calls.count("2026-10-21") == 3
+    # retry cu pauză: 3 încercări, pentru azi (cerut primul); restul zilelor nu se mai cer
+    assert Fake.calls.count("2026-10-22") == 3 and "2026-10-21" not in Fake.calls
 
 
 @pytest.mark.freeze_time("2026-10-22 18:30:00")
@@ -302,8 +302,10 @@ class _Sess:
     def __init__(self, status, body):
         self.r = (status, body)
         self.headers = None
+        self.all_headers = []
     def get(self, url, headers=None, **kw):
         self.headers = headers
+        self.all_headers.append(headers)
         self.url = url
         return _Resp(*self.r)
 
@@ -312,7 +314,7 @@ async def test_client_http_classification():
     csvt = (FIX / FILES["2026-10-22"]).read_text(encoding="utf-8")
     s = _Sess(200, csvt)
     rows = await _REAL_FETCH(OpcomClient(s), "2026-10-22")
-    assert len(rows) == 96 and s.url.endswith("/22/10/2026/ro?resolution=15") and "Sec-Fetch-Mode" in s.headers
+    assert len(rows) == 96 and s.url.endswith("/22/10/2026/ro?resolution=15") and "Sec-Fetch-Mode" not in s.headers and "Referer" not in s.headers
     assert await _REAL_FETCH(OpcomClient(_Sess(200, "")), "2026-10-24") is None
     with pytest.raises(OpcomBlockedError):
         await _REAL_FETCH(OpcomClient(_Sess(200, "<html>Request Rejected</html>")), "2026-10-22")
@@ -321,3 +323,60 @@ async def test_client_http_classification():
     with pytest.raises(OpcomNotCsvError):
         await _REAL_FETCH(OpcomClient(_Sess(200, "<html>x</html>")), "2026-10-22")
 
+
+
+async def test_blocked_message_has_body_snippet():
+    body = "<html><body>Blocked by Barracuda. BAD_CLIENT " + "x" * 400
+    with pytest.raises(OpcomBlockedError) as ei:
+        await _REAL_FETCH(OpcomClient(_Sess(403, body)), "2026-10-22")
+    msg = str(ei.value)
+    assert "HTTP 403" in msg and "BAD_CLIENT" in msg and "nodered" in msg
+    assert len(msg) < 400
+
+
+async def test_client_rotates_header_profiles_and_remembers_good_one():
+    from custom_components.opcom_pzu.const import HEADER_PROFILES
+    csvt = (FIX / FILES["2026-10-22"]).read_text(encoding="utf-8")
+    s = _Sess(403, "Blocked")
+    c = OpcomClient(s)
+    uas = []
+    for attempt in range(3):
+        with pytest.raises(OpcomBlockedError):
+            await _REAL_FETCH(c, "2026-10-22", attempt=attempt)
+        uas.append(s.headers["User-Agent"])
+    assert uas == [h["User-Agent"] for _, h in HEADER_PROFILES]      # trei profile diferite
+    s.r = (200, csvt)
+    assert await _REAL_FETCH(c, "2026-10-22", attempt=1)               # profilul al 2-lea merge
+    await _REAL_FETCH(c, "2026-10-22")                                 # următoarea cerere pornește de la el
+    assert s.all_headers[-1] == s.all_headers[-2] == HEADER_PROFILES[1][1]
+
+
+@pytest.mark.freeze_time("2026-10-22 18:30:00")
+async def test_block_stops_other_days_and_backs_off(hass, freezer):
+    from custom_components.opcom_pzu.const import UPDATE_INTERVAL
+    Fake.mode = "blocked"
+    entry = await _setup(hass)
+    c = entry.runtime_data
+    assert set(Fake.calls) == {"2026-10-22"} and Fake.calls.count("2026-10-22") == 3   # azi primul; apoi oprire
+    assert c.update_interval == timedelta(minutes=1)
+    Fake.calls.clear()
+    for expected in (5, 15, 15):
+        c._next_try.clear()
+        await c.async_refresh()
+        assert c.update_interval == timedelta(minutes=expected)
+    Fake.mode = "ok"
+    c._next_try.clear()
+    await c.async_refresh()
+    assert c.update_interval == UPDATE_INTERVAL and c._blocks == 0
+
+
+@pytest.mark.freeze_time("2026-10-22 18:30:00")
+async def test_days_fetched_today_first_with_pause(hass, monkeypatch):
+    pauses = []
+    async def rec(b):
+        pauses.append(b)
+    monkeypatch.setattr(coord_mod, "_pause", rec)
+    await _setup(hass)
+    assert Fake.calls[:2] == ["2026-10-22", "2026-10-21"]
+    from custom_components.opcom_pzu.const import DAY_PAUSE
+    assert pauses.count(DAY_PAUSE) == 2       # 3 zile => 2 pauze

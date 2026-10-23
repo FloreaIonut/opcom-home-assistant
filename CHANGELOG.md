@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 (23.10.2026)
+- Integrarea `opcom_pzu`: 3 profiluri de antete HTTP încercate pe rând, sesiune proprie, cereri făcute pe rând (nu în paralel), reîncercări cu pauză (backoff) la HTTP 403 / WAF, log de diagnostic pentru blocări.
+- Limită cunoscută: după o cerere blocată, zilele următoare nu se mai cer în runda respectivă; vezi README, „Blocare WAF”.
+- Teste: 33 (parser + integrare).
+
 ## 0.1.2 (23.10.2026)
 - Card interactiv `card-opcom.yaml` (button-card + browser_mod): click pe card => fereastră cu graficul pe 60 min și prețul sub fiecare coloană; click pe coloană => detaliu pe 15 min; AZI / MÂINE / ORA CURENTĂ; fără helperi; corect în zile de 23/25 h; sloturile fără preț apar ca „–”.
 - Nou `docs/card-preview.png` (date publice OPCOM). Doar card și documentație; codul integrării nu s-a schimbat.

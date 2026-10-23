@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.event import async_track_utc_time_change
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -19,7 +19,9 @@ from homeassistant.util import dt as dt_util
 
 from .api import OpcomClient, OpcomError
 from .const import (
+    BLOCK_BACKOFF,
     CONF_TIMEZONE,
+    DAY_PAUSE,
     CONF_ZONE,
     DEFAULT_TIMEZONE,
     DEFAULT_ZONE,
@@ -76,7 +78,10 @@ class OpcomCoordinator(DataUpdateCoordinator[OpcomData]):
         except (ZoneInfoNotFoundError, ValueError):
             _LOGGER.error("Fus orar necunoscut, folosesc %s", DEFAULT_TIMEZONE)
             self.tz = ZoneInfo(DEFAULT_TIMEZONE)
-        self._client = OpcomClient(async_get_clientsession(hass), self.zone)
+        # sesiune proprie (cookie jar propriu, nu cea comună a HA)
+        self._session = async_create_clientsession(hass)
+        self._client = OpcomClient(self._session, self.zone)
+        self._blocks = 0
         self._store: Store = Store(hass, STORAGE_VERSION, f"{STORAGE_KEY_PREFIX}{entry.entry_id}")
         self.prices: Prices = {}
         self.fetched_at: datetime | None = None
@@ -101,6 +106,10 @@ class OpcomCoordinator(DataUpdateCoordinator[OpcomData]):
         self._unsub_tick = async_track_utc_time_change(
             self.hass, self._tick, minute=(0, 15, 30, 45), second=0
         )
+
+    async def async_close(self) -> None:
+        if self._session is not None:
+            await self._session.close()
 
     @callback
     def stop_ticker(self) -> None:
@@ -132,12 +141,12 @@ class OpcomCoordinator(DataUpdateCoordinator[OpcomData]):
         last: OpcomError | None = None
         for attempt in range(FETCH_ATTEMPTS):
             try:
-                return await self._client.fetch_day(key)
+                return await self._client.fetch_day(key, attempt=attempt)
             except OpcomError as err:
                 last = err
                 if err.code != "blocked" or attempt == FETCH_ATTEMPTS - 1:
                     break
-                await _pause(RETRY_PAUSE)
+                await _pause(RETRY_PAUSE)     # la reîncercare api.py schimbă profilul de antete
         assert last is not None
         raise last
 
@@ -147,16 +156,29 @@ class OpcomCoordinator(DataUpdateCoordinator[OpcomData]):
         want = days_to_fetch(now, self.tz, TOMORROW_HOUR)
         changed = False
         error: OpcomError | None = None
-        for key in want:
+        blocked = False
+        fetched = False
+        # azi primul, apoi ieri, apoi mâine: dacă ne blochează, măcar azi e deja cerut
+        for key in sorted(want, key=lambda k: (k != azi, k)):
             if not self._needs(key, now, azi):
                 continue
             tomorrow = key == key_plus(azi, 1)
+            if fetched:
+                await _pause(DAY_PAUSE)       # nu cerem zilele în rafală
+            fetched = True
             try:
                 rows = await self._fetch_with_retry(key)
             except OpcomError as err:
                 error = err
-                self._next_try[key] = now + (TOMORROW_RETRY if tomorrow else UPDATE_INTERVAL)
                 self._log_error(err)
+                if err.code == "blocked":
+                    blocked = True
+                    wait = BLOCK_BACKOFF[min(self._blocks, len(BLOCK_BACKOFF) - 1)]
+                    self._blocks += 1
+                    self._next_try[key] = now + wait
+                    self.update_interval = wait
+                    break                     # nu mai bombardăm cu celelalte zile
+                self._next_try[key] = now + (TOMORROW_RETRY if tomorrow else UPDATE_INTERVAL)
                 continue
             if not rows:
                 _LOGGER.debug("Ziua %s nu e publicată încă", key)
@@ -172,6 +194,9 @@ class OpcomCoordinator(DataUpdateCoordinator[OpcomData]):
             if self.prices.get(key) != rows:      # dedup: nu rescriem cache-ul dacă nu s-a schimbat
                 self.prices[key] = rows
                 changed = True
+        if not blocked:
+            self._blocks = 0
+            self.update_interval = UPDATE_INTERVAL
         if error is None:
             self.last_error = None
             self._last_logged = None

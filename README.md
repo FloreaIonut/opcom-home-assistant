@@ -87,6 +87,13 @@ Deci intervalul 1 (00:00–00:15 CET) este 01:00–01:15 ora României, iar ulti
 - Doar zona `Romania` și doar rezoluția de 15 min (30/60 min sunt medii calculate).
 - Prețurile de mâine se cer după ora 14:00 ora României, la 30 min până apar.
 
+## Blocare WAF / limite cunoscute
+
+- OPCOM (Barracuda WAF) poate refuza cererile de pe unele IP-uri (HTTP 403). v0.1.1 încearcă 3 profiluri de antete și reîncearcă cu pauză; cauza apare în log.
+- Observat la un utilizator: ziua curentă se descarcă, dar ziua anterioară poate rămâne blocată. Atunci prima oră a zilei (00:00–01:00 ora României, care vine din intervalul 24 de ieri) apare „–” pe card.
+- După o cerere blocată, integrarea nu mai cere zilele următoare în runda respectivă. Este o limită cunoscută; planificat: cereri independente pe zi (încă nefăcut).
+- Variantă de rezervă: fluxul Node-RED din [`nodered/`](nodered/), care aduce aceleași date prin altă cale.
+
 ## Depanare
 
 Activează logurile în `configuration.yaml`:
@@ -109,7 +116,7 @@ logger:
 
 ```bash
 pip install pytest-homeassistant-custom-component
-python -m pytest tests          # 29 teste: parser (CSV-uri reale OPCOM) + integrare cu HA
+python -m pytest tests          # 33 teste: parser (CSV-uri reale OPCOM) + integrare cu HA
 cd nodered && node tests/run-tests.js   # 28 teste, varianta Node-RED
 ```
 

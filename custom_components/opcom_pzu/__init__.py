@@ -20,6 +20,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpcomConfigEntry) -> boo
     # Fără ConfigEntryNotReady: la eroare e „unavailable" + mesaj în log, reîncercare la 10 min.
     await coordinator.async_refresh()
     entry.runtime_data = coordinator
+    entry.async_on_unload(coordinator.async_close)
     coordinator.start_ticker()
     entry.async_on_unload(coordinator.stop_ticker)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
