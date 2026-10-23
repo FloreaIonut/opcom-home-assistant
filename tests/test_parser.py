@@ -1,4 +1,4 @@
-"""Teste pure pe parser.py (fără HA). Aceleași aserțiuni ca testele din varianta din nodered/."""
+"""Teste pure pe parser.py (fără HA). Aceleași aserțiuni ca testele din varianta Node-RED (repo opcom-nodered)."""
 
 from __future__ import annotations
 

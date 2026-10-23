@@ -4,7 +4,7 @@ Integrare nativă pentru **Home Assistant** (instalabilă din HACS) care aduce p
 
 ![card](docs/card-preview.png)
 
-*English, short:* a Home Assistant custom integration (HACS-compatible) that downloads the public OPCOM day-ahead market (PZU) CSV and exposes Romanian electricity prices as sensors (current 15-min price, today/tomorrow min/max/average, next cheap hour, 15/30/60-minute lists as attributes). OPCOM intervals are in CET/CEST and are converted to Romanian local time, including 23/25-hour days. An interactive `custom:button-card` dashboard card (needs `button-card` and `browser_mod`) is included: click for a 60-minute chart popup, click a column for the 15-minute detail. Unofficial, not affiliated with OPCOM. A legacy Node-RED variant lives in [`nodered/`](nodered/).
+*English, short:* a Home Assistant custom integration (HACS-compatible) that downloads the public OPCOM day-ahead market (PZU) CSV and exposes Romanian electricity prices as sensors (current 15-min price, today/tomorrow min/max/average, next cheap hour, 15/30/60-minute lists as attributes). OPCOM intervals are in CET/CEST and are converted to Romanian local time, including 23/25-hour days. An interactive `custom:button-card` dashboard card (needs `button-card` and `browser_mod`) is included: click for a 60-minute chart popup, click a column for the 15-minute detail. Unofficial, not affiliated with OPCOM. The Node-RED variant moved to [opcom-nodered](https://github.com/FloreaIonut/opcom-nodered).
 
 ## Ce face
 
@@ -92,7 +92,7 @@ Deci intervalul 1 (00:00–00:15 CET) este 01:00–01:15 ora României, iar ulti
 - OPCOM (Barracuda WAF) poate refuza cererile de pe unele IP-uri (HTTP 403). v0.1.1 încearcă 3 profiluri de antete și reîncearcă cu pauză; cauza apare în log.
 - Observat la un utilizator: ziua curentă se descarcă, dar ziua anterioară poate rămâne blocată. Atunci prima oră a zilei (00:00–01:00 ora României, care vine din intervalul 24 de ieri) apare „–” pe card.
 - După o cerere blocată, integrarea nu mai cere zilele următoare în runda respectivă. Este o limită cunoscută; planificat: cereri independente pe zi (încă nefăcut).
-- Variantă de rezervă: fluxul Node-RED din [`nodered/`](nodered/), care aduce aceleași date prin altă cale.
+- Variantă de rezervă: fluxul Node-RED din [opcom-nodered](https://github.com/FloreaIonut/opcom-nodered), care aduce aceleași date prin altă cale.
 
 ## Depanare
 
@@ -110,14 +110,13 @@ logger:
 
 ## Varianta Node-RED
 
-Înainte de integrarea nativă, repo-ul a conținut un flux **Node-RED** care trimite aceleași date în Home Assistant prin API-ul REST (`sensor.opcom_pret_acum`), cu propriul card. A rămas în [`nodered/`](nodered/) pentru cine folosește deja Node-RED și nu vrea o integrare custom; are README, teste și changelog proprii. Pentru instalări noi folosește integrarea de mai sus.
+Varianta cu Node-RED a fost mutată în repo-ul separat: https://github.com/FloreaIonut/opcom-nodered
 
 ## Dezvoltare și teste
 
 ```bash
 pip install pytest-homeassistant-custom-component
 python -m pytest tests          # 33 teste: parser (CSV-uri reale OPCOM) + integrare cu HA
-cd nodered && node tests/run-tests.js   # 28 teste, varianta Node-RED
 ```
 
 ## Licență

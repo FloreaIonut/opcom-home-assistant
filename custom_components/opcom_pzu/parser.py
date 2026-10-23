@@ -1,6 +1,6 @@
 """Logica pură OPCOM PZU (fără Home Assistant): CSV, fus orar, grila zilei locale.
 
-Port fidel al `opcom-core.js` din varianta din nodered/ (corecția de fus orar, 22.10.2026):
+Port fidel al `opcom-core.js` din varianta Node-RED din repo-ul opcom-nodered (corecția de fus orar, 22.10.2026):
 
 * OPCOM publică intervalele în CET/CEST (ora României minus 1 h): intervalul 1 al
   zilei OPCOM Z = 00:00-00:15 CET/CEST al lui Z = 01:00-01:15 ora României.
